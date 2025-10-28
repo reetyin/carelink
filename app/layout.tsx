@@ -6,6 +6,7 @@ import { Montserrat, Open_Sans } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { Suspense } from "react"
 import "./globals.css"
+import SessionBridge from "@/components/auth/SessionBridge"
 
 const montserrat = Montserrat({
   subsets: ["latin"],
@@ -36,7 +37,8 @@ export default function RootLayout({
       <body
         className={`font-sans ${GeistSans.variable} ${GeistMono.variable} ${montserrat.variable} ${openSans.variable}`}
       >
-        <Suspense fallback={null}>{children}</Suspense>
+  <SessionBridge />
+  <Suspense fallback={null}>{children}</Suspense>
         <Analytics />
       </body>
     </html>

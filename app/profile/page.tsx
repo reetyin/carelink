@@ -1,4 +1,6 @@
 "use client"
+import { normalizeChildKeys, type ChildV2 } from "../../lib/children"
+import { ChildNotesEditor } from "../../components/child/ChildNotesEditor"
 
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
@@ -30,6 +32,14 @@ import {
   Save,
   ArrowLeft,
 } from "lucide-react"
+
+type SpecialDetails = {
+  healthSafety?: string
+  behaviorEmotions?: string
+  routineFood?: string
+  learningActivities?: string
+  parentNotes?: string
+}
 
 // Blank profile for new users (will be overridden by localStorage if present)
 const userProfile = {
@@ -109,7 +119,7 @@ export default function ProfilePage() {
     if (!file) return
     // Optional: size guard (e.g., 2MB)
     if (file.size > 2 * 1024 * 1024) {
-      alert('图片太大，请选择 2MB 以下文件')
+      alert('please select an image smaller than 2MB')
       return
     }
     const reader = new FileReader()
@@ -199,7 +209,7 @@ export default function ProfilePage() {
         if (storedNotify) { try { setNotifications(JSON.parse(storedNotify)) } catch {} }
       }
     } catch (err) {
-      console.warn('读取本地数据失败', err)
+      console.warn('Failed to read local data', err)
     }
   }, [])
 
@@ -286,6 +296,11 @@ export default function ProfilePage() {
     link.click()
     document.body.removeChild(link)
   }
+  const NumberBadge = ({ n }: { n: number }) => (
+    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-semibold mr-2 align-middle">
+      {n}
+    </span>
+  )
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
@@ -322,7 +337,7 @@ export default function ProfilePage() {
             <Button className="bg-primary hover:bg-primary/90 text-primary-foreground" onClick={() => router.push('/login')}>Go to Login</Button>
           </div>
         )}
-        {/* 固定底部操作栏 */}
+        {/* Profile Actions */}
         {user !== null && (
           <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-sm py-4 px-4 flex justify-center z-40">
             {isEditing ? (
@@ -354,8 +369,8 @@ export default function ProfilePage() {
                 <Avatar className="w-24 h-24 cursor-pointer" onClick={isEditing ? handleSelectPhoto : undefined} title={isEditing ? "Click to change photo" : undefined}>
                   <AvatarImage src={editedProfile.profileImage || "/placeholder.svg"} alt="Profile" />
                   <AvatarFallback className="text-2xl">
-                    {editedProfile.firstName[0]}
-                    {editedProfile.lastName[0]}
+                    {(editedProfile.firstName || 'U').charAt(0)}
+                    {(editedProfile.lastName || 'N').charAt(0)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
@@ -366,7 +381,7 @@ export default function ProfilePage() {
                   <div className="flex items-center space-x-4 mt-2">
                     <Badge variant="outline" className="bg-white text-gray-700 border-gray-200">Parent</Badge>
                     <span className="text-sm text-muted-foreground">
-                      Member since {new Date(userProfile.joinDate).toLocaleDateString()}
+                      Member since {editedProfile.joinDate ? new Date(editedProfile.joinDate).toLocaleDateString() : '—'}
                     </span>
                   </div>
                 </div>
@@ -609,7 +624,7 @@ export default function ProfilePage() {
                 </Button>
               </div>
 
-              {editedChildren.map((child) => (
+              {editedChildren.map((child, idx) => (
                 <Card key={child.id}>
                   <CardHeader>
                     <div className="flex items-center justify-between">
@@ -704,16 +719,89 @@ export default function ProfilePage() {
                       />
                     </div>
 
-                    <div>
-                      <Label>Special Needs</Label>
-                      <Textarea
-                        value={child.specialNeeds}
-                        onChange={(e) => handleUpdateChild(child.id, "specialNeeds", e.target.value)}
-                        disabled={!isEditing}
-                        rows={2}
-                        placeholder="Is there anything your child finds challenging or needs more help with (for example: communication, behavior, or movement)"
-                        className="placeholder:text-foreground/60"
-                      />
+                    <div className="space-y-3">
+                      <Label className="text-base">Special Details</Label>
+                      {(() => {
+                        const normalized = normalizeChildKeys(child as any)
+                        const sd: Partial<SpecialDetails> =
+                          typeof normalized.specialDetails === 'object' && normalized.specialDetails !== null
+                            ? (normalized.specialDetails as Partial<SpecialDetails>)
+                            : {}
+                        const healthSafety = sd.healthSafety ?? ''
+                        const behaviorEmotions = sd.behaviorEmotions ?? ''
+                        const routineFood = sd.routineFood ?? ''
+                        const learningActivities = sd.learningActivities ?? ''
+                        const parentNotes = typeof normalized.specialDetails === 'string' ? normalized.specialDetails : (sd.parentNotes ?? '')
+                        return (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <Label className="text-sm inline-flex items-center"><NumberBadge n={1} /> Health & Safety</Label>
+                              <Textarea
+                                placeholder="e.g. Peanut allergy… inhaler daily… doctor: Dr. Chen (204-555-7890)…"
+                                disabled={!isEditing}
+                                rows={3}
+                                value={healthSafety}
+                                onChange={(e) => {
+                                  const next = { healthSafety: e.target.value, behaviorEmotions, routineFood, learningActivities, parentNotes }
+                                  handleUpdateChild(child.id, 'specialDetails', next as any)
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-sm inline-flex items-center"><NumberBadge n={2} /> Behavior & Emotions</Label>
+                              <Textarea
+                                placeholder="e.g. Cheerful but shy… upset when too loud… calms with music or hugs…"
+                                disabled={!isEditing}
+                                rows={3}
+                                value={behaviorEmotions}
+                                onChange={(e) => {
+                                  const next = { healthSafety, behaviorEmotions: e.target.value, routineFood, learningActivities, parentNotes }
+                                  handleUpdateChild(child.id, 'specialDetails', next as any)
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-sm inline-flex items-center"><NumberBadge n={3} /> Routine & Food</Label>
+                              <Textarea
+                                placeholder="e.g. Loves pasta… dislikes spicy food… naps 12:30-2:00 PM… needs help with zippers…"
+                                disabled={!isEditing}
+                                rows={3}
+                                value={routineFood}
+                                onChange={(e) => {
+                                  const next = { healthSafety, behaviorEmotions, routineFood: e.target.value, learningActivities, parentNotes }
+                                  handleUpdateChild(child.id, 'specialDetails', next as any)
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-sm inline-flex items-center"><NumberBadge n={4} /> Learning & Activities</Label>
+                              <Textarea
+                                placeholder="e.g. Enjoys drawing and singing… dislikes messy play… loves cars and animals…"
+                                disabled={!isEditing}
+                                rows={3}
+                                value={learningActivities}
+                                onChange={(e) => {
+                                  const next = { healthSafety, behaviorEmotions, routineFood, learningActivities: e.target.value, parentNotes }
+                                  handleUpdateChild(child.id, 'specialDetails', next as any)
+                                }}
+                              />
+                            </div>
+                            <div className="md:col-span-2">
+                              <Label className="text-sm inline-flex items-center"><NumberBadge n={5} /> Parent Notes</Label>
+                              <Textarea
+                                placeholder="e.g. Morning routine… comfort toy… special instructions…"
+                                disabled={!isEditing}
+                                rows={3}
+                                value={parentNotes}
+                                onChange={(e) => {
+                                  const next = { healthSafety, behaviorEmotions, routineFood, learningActivities, parentNotes: e.target.value }
+                                  handleUpdateChild(child.id, 'specialDetails', next as any)
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )
+                      })()}
                     </div>
                   </CardContent>
                 </Card>

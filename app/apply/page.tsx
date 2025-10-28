@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { MapPin, Star, Clock, Heart, ArrowLeft, User, Baby, Send, CheckCircle, AlertCircle, Users } from "lucide-react"
 import Link from "next/link"
+import { normalizeChildKeys } from "@/lib/children"
 
 // Mock data for selected providers
 const selectedProviders = [
@@ -539,6 +540,17 @@ export default function ApplicationPage() {
                         value={childInfo.specialNeeds}
                         onChange={(e) => setChildInfo({ ...childInfo, specialNeeds: e.target.value })}
                         placeholder="Any special needs or accommodations required"
+                        rows={3}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium">Special Details</label>
+                      <textarea
+                        className="mt-1 w-full rounded-md border p-2 placeholder:opacity-60"
+                        placeholder="Anything important to share about your child (health, behavior, routines, learning, other notes)"
+                        value={child.specialDetails || ""}
+                        onChange={(e) => setChild((c: any) => ({ ...(c || {}), specialDetails: e.target.value }))}
                         rows={3}
                       />
                     </div>

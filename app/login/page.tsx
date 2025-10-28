@@ -7,6 +7,7 @@ import { FaFacebook, FaApple } from "react-icons/fa";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { login as authLogin, createVerifyToken, getUser, createUser } from "@/lib/auth";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -20,15 +21,15 @@ export default function LoginPage() {
     }
   }, [router]);
 
-  function handleLogin(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     if (!email || !password) return;
     try {
-      const rec = authLogin(email, password);
+      const rec = await authLogin(email, password);
       // If not verified, send verification link and redirect to verify-sent
       if (!rec.verified) {
-        const token = createVerifyToken(email);
-        router.push(`/verify-sent?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`);
+        // Supabase handles email verification; send user to verify-sent
+        router.push(`/verify-sent?email=${encodeURIComponent(email)}`)
         return;
       }
   // Role selection if missing
@@ -45,7 +46,13 @@ export default function LoginPage() {
   if (rec.role === 'Provider') router.push('/provider/dashboard');
   else if (rec.role === 'Parent') router.push('/dashboard');
   else router.push('/role');
-    } catch (err) {
+    } catch (err: any) {
+      const msg = String(err?.message || '')
+      if (msg.toLowerCase().includes('email') && msg.toLowerCase().includes('confirm')) {
+        // Unconfirmed email per Supabase; direct to verify-sent
+        router.push(`/verify-sent?email=${encodeURIComponent(email)}`)
+        return;
+      }
       // Fallback for demo: if account doesn't exist, create it and send verification link
       try {
         const exists = !!getUser(email);
@@ -65,7 +72,7 @@ export default function LoginPage() {
           return;
         }
       } catch {}
-      alert('Invalid email or password');
+  alert('Invalid email or password');
     }
   }
 
@@ -73,7 +80,7 @@ export default function LoginPage() {
     <div className="flex flex-col items-center justify-center min-h-screen bg-background">
       <div className="w-full max-w-md p-8 space-y-6 bg-background rounded">
         <h2 className="text-2xl font-bold text-center">Login CareLink</h2>
-        <p className="text-center text-lg font-semibold mb-4">Welcome Back to childcare search!</p>
+        <p className="text-center text-lg font-semibold mb-4">Welcome Back to Child Care Search!</p>
         <form className="space-y-4" onSubmit={handleLogin}>
           <div>
             <label className="block mb-1 font-medium">Email</label>
@@ -95,13 +102,37 @@ export default function LoginPage() {
             <div className="flex-grow h-px bg-gray-200" />
           </div>
           <div className="flex justify-center gap-4 mb-2">
-            <button className="p-3 rounded-full border hover:bg-gray-100 shadow-sm" aria-label="Sign in with Google">
+            <button
+              type="button"
+              className="p-3 rounded-full border hover:bg-gray-100 shadow-sm"
+              aria-label="Sign in with Google"
+              onClick={async () => {
+                const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined
+                await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } })
+              }}
+            >
               <FcGoogle size={28} />
             </button>
-            <button className="p-3 rounded-full border hover:bg-gray-100 text-primary shadow-sm" aria-label="Sign in with Facebook">
+            <button
+              type="button"
+              className="p-3 rounded-full border hover:bg-gray-100 text-primary shadow-sm"
+              aria-label="Sign in with Facebook"
+              onClick={async () => {
+                const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined
+                await supabase.auth.signInWithOAuth({ provider: 'facebook', options: { redirectTo } })
+              }}
+            >
               <FaFacebook size={26} />
             </button>
-            <button className="p-3 rounded-full border hover:bg-gray-100 text-black shadow-sm" aria-label="Sign in with Apple">
+            <button
+              type="button"
+              className="p-3 rounded-full border hover:bg-gray-100 text-black shadow-sm"
+              aria-label="Sign in with Apple"
+              onClick={async () => {
+                const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined
+                await supabase.auth.signInWithOAuth({ provider: 'apple', options: { redirectTo } })
+              }}
+            >
               <FaApple size={26} />
             </button>
           </div>

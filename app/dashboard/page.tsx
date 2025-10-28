@@ -5,7 +5,8 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useRouter } from "next/navigation"
-import { getCurrentUserEmail, getUser, createVerifyToken, logout as authLogout } from "@/lib/auth"
+import { getCurrentUserEmail, getUser, createVerifyToken, logout as authLogout, setVerified } from "@/lib/auth"
+import { supabase } from "@/lib/supabaseClient"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -180,18 +181,29 @@ export default function DashboardPage() {
   const [authChecked, setAuthChecked] = useState(false);
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const email = getCurrentUserEmail();
-      if (email) {
-        setUser({ email, name: email.split('@')[0] });
-        const rec = getUser(email);
-        if (!rec?.verified) {
-          const token = createVerifyToken(email);
-          router.replace(`/verify-sent?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`);
-          return;
+      (async () => {
+        const email = getCurrentUserEmail();
+        if (email) {
+          setUser({ email, name: email.split('@')[0] });
+          // Prefer Supabase session for verified status
+          const { data } = await supabase.auth.getSession();
+          const supaVerified = !!data.session?.user?.email_confirmed_at;
+          if (supaVerified) {
+            setVerified(email, true);
+          } else {
+            const rec = getUser(email);
+            if (!rec?.verified) {
+              const token = createVerifyToken(email);
+              router.replace(`/verify-sent?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`);
+              return;
+            }
+          }
         }
-      }
+        setAuthChecked(true);
+      })();
+    } else {
+      setAuthChecked(true);
     }
-    setAuthChecked(true);
   }, [router]);
   function handleLogout() {
     setUser(null);

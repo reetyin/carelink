@@ -45,3 +45,28 @@ postgresql://postgres:<password>@<host>:6543/postgres?sslmode=require
 ## 7) Next steps
 - Normalize children into a dedicated table.
 - Move auth to Supabase Auth and add RLS policies.
+
+## 8) OAuth login (Google/Facebook/Apple)
+
+The login page has OAuth buttons wired to Supabase. To enable:
+
+1) Supabase → Authentication → URL Configuration
+- Add Redirect URLs:
+  - http://localhost:3000/auth/callback
+  - https://YOUR_DOMAIN/auth/callback
+
+2) Supabase → Authentication → Providers
+- Enable providers and paste their credentials.
+- Each provider's authorized redirect/callback URL must include your project callback:
+  - https://YOUR_PROJECT_REF.supabase.co/auth/v1/callback
+  - Example: https://zbninzkmhqgzhtshabqp.supabase.co/auth/v1/callback
+
+3) Provider credentials needed
+- Google: OAuth Client ID, Client Secret
+- Facebook: App ID, App Secret
+- Apple: Service ID, Team ID, Key ID, Private Key (.p8)
+
+4) App flow
+- Button → supabase.auth.signInWithOAuth → redirects to provider.
+- Provider → Supabase → back to /auth/callback.
+- We read session, map email into local user store, then route to /role.

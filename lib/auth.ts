@@ -1,4 +1,5 @@
-// Simple client-side auth utilities using localStorage (demo only)
+// Auth utilities backed by Supabase Auth, with a small localStorage bridge for currentUser email.
+import { supabase } from '@/lib/supabaseClient'
 // Keys
 const USERS_KEY = 'users'; // map email -> user record
 const CURRENT_USER_KEY = 'currentUser'; // email string
@@ -42,13 +43,22 @@ export function saveUsers(users: UsersMap) {
   writeJSON(USERS_KEY, users);
 }
 
-export function createUser(email: string, password: string): UserRecord {
-  const users = getUsers();
-  if (users[email]) throw new Error('User already exists');
-  const rec: UserRecord = { email, password, verified: false };
-  users[email] = rec;
-  saveUsers(users);
-  return rec;
+export async function createUser(email: string, password: string): Promise<UserRecord> {
+  // Ensure Supabase sends email verification links back to our app
+  const redirectTo =
+    typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: redirectTo ? { emailRedirectTo: redirectTo } : undefined,
+  })
+  if (error) throw new Error(error.message)
+  const user = data.user
+  // verified depends on provider/email confirmation settings
+  const rec: UserRecord = { email, password, verified: !!user?.email_confirmed_at }
+  // Note: legacy local map retained only for compatibility where needed
+  const users = getUsers(); users[email] = rec; saveUsers(users)
+  return rec
 }
 
 export function getUser(email: string): UserRecord | undefined {
@@ -57,10 +67,12 @@ export function getUser(email: string): UserRecord | undefined {
 
 export function setVerified(email: string, verified = true) {
   const users = getUsers();
-  if (users[email]) {
+  if (!users[email]) {
+    users[email] = { email, password: '', verified };
+  } else {
     users[email].verified = verified;
-    saveUsers(users);
   }
+  saveUsers(users);
 }
 
 export function setRole(email: string, role: 'Parent' | 'Provider') {
@@ -117,18 +129,25 @@ export function getCurrentUserEmail(): string | null {
   return window.localStorage.getItem(CURRENT_USER_KEY);
 }
 
-export function login(email: string, password: string): UserRecord {
-  const rec = getUser(email);
-  if (!rec || rec.password !== password) throw new Error('Invalid credentials');
-  setCurrentUser(email);
-  return rec;
+export async function login(email: string, password: string): Promise<UserRecord> {
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+  if (error) throw new Error(error.message || 'Invalid credentials')
+  setCurrentUser(email)
+  // derive verified from session's user
+  const verified = !!data.session?.user?.email_confirmed_at
+  const rec: UserRecord = { email, password, verified }
+  const users = getUsers(); users[email] = { ...(users[email]||{}), ...rec }; saveUsers(users)
+  return rec
 }
 
-export function logout() {
-  setCurrentUser(null);
+export async function logout() {
+  await supabase.auth.signOut()
+  setCurrentUser(null)
 }
 
 export function isAuthenticated(): boolean {
+  // Prefer Supabase session; fallback to local bridge
+  // Note: in client, supabase.auth.getSession() is async; keep simple bridge for gating UI
   return !!getCurrentUserEmail();
 }
 
@@ -136,38 +155,19 @@ function genToken(): string {
   return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
 }
 
+// Email verification is handled by Supabase; keep stubs for route compatibility
 export function createVerifyToken(email: string): string {
-  const tokens = readJSON<TokensMap>(VERIFY_TOKENS_KEY, {});
-  const token = genToken();
-  tokens[token] = email;
-  writeJSON(VERIFY_TOKENS_KEY, tokens);
-  return token;
+  return 'supabase-email-verification';
 }
 
 export function consumeVerifyToken(token: string): string | null {
-  const tokens = readJSON<TokensMap>(VERIFY_TOKENS_KEY, {});
-  const email = tokens[token] || null;
-  if (email) {
-    delete tokens[token];
-    writeJSON(VERIFY_TOKENS_KEY, tokens);
-  }
-  return email;
+  return null;
 }
 
 export function createResetToken(email: string): string {
-  const tokens = readJSON<TokensMap>(RESET_TOKENS_KEY, {});
-  const token = genToken();
-  tokens[token] = email;
-  writeJSON(RESET_TOKENS_KEY, tokens);
-  return token;
+  return 'supabase-password-reset';
 }
 
 export function consumeResetToken(token: string): string | null {
-  const tokens = readJSON<TokensMap>(RESET_TOKENS_KEY, {});
-  const email = tokens[token] || null;
-  if (email) {
-    delete tokens[token];
-    writeJSON(RESET_TOKENS_KEY, tokens);
-  }
-  return email;
+  return null;
 }

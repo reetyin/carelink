@@ -5,7 +5,7 @@ import { FcGoogle } from "react-icons/fc";
 import { FaFacebook, FaApple } from "react-icons/fa";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { createUser, createVerifyToken } from "@/lib/auth";
+import { createUser } from "@/lib/auth";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -14,7 +14,7 @@ export default function RegisterPage() {
   const [confirm, setConfirm] = useState("");
   const [consent, setConsent] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!email || !password || !confirm) return;
     if (password !== confirm) {
@@ -26,9 +26,9 @@ export default function RegisterPage() {
       return;
     }
     try {
-      createUser(email, password);
-      const token = createVerifyToken(email);
-      router.push(`/verify-sent?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`);
+      await createUser(email, password);
+      // Supabase usually emails a verification link; guide user accordingly
+      router.push(`/verify-sent?email=${encodeURIComponent(email)}`);
     } catch (err: any) {
       alert(err?.message || 'Registration failed');
     }
