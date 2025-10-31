@@ -70,3 +70,4 @@ The login page has OAuth buttons wired to Supabase. To enable:
 - Button → supabase.auth.signInWithOAuth → redirects to provider.
 - Provider → Supabase → back to /auth/callback.
 - We read session, map email into local user store, then route to /role.
+echo "test" >> test.txt
